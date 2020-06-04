@@ -41,7 +41,7 @@ static pthread_mutex_t fork_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #define USE_SCRATCH 0
 #define REMOVE_DIRS 1
-#define RESTRICT_WAITING_TIME 1 
+#define RESTRICT_WAITING_TIME 0
 
 void taskfun(double /*const*/ *x, int *pN, double *res, int winfo[4])
 {
@@ -208,6 +208,10 @@ retry:
     }
     else
     {
+        if(feof(pFile)) {
+            printf("debug tudor. There is no likelihood (yet?) written to file!!\n");
+            exit(0);
+        }
         while (!feof(pFile))
             fscanf(pFile, "%lf", &likelihood );
         

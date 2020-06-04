@@ -1,1 +1,1 @@
-echo -L/Users/lipkova 1/usr/torc/lib -ltorc -lpthread
+echo -L/home/tudorm/GliomaSolver/lib/usr/torc/lib -ltorc -lpthread

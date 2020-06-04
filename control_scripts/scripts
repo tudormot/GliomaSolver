@@ -1,0 +1,27 @@
+#files required to be modified in order to set up all calculation:
+1.modify runAll.sh to use a step of 1 for gliomaso,ver likelihood calculation
+2.modify tmcmc_glioma.par to use the custom  
+
+
+# script 1: copy a file to all directories in 20P:
+
+for d in */; do cp tmcmc_glioma.par "$d"/Inference; done
+
+
+
+#script 2: run setup_inference.sh in all directories:
+for d in */; do cd "$d"; ./setupInference.sh; cd ..; done
+
+
+#script 3: setup the inference folder for deeptumor:
+Pseudocode:
+copy already set up Inference (where gliomaSolver will work)
+remove everything from TMPTMP subdirectory
+copy new runAll.sh to TMPTMP subdirectory
+
+
+
+
+
+TODO:fix Results directory being created in the correct location
+

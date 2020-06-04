@@ -7,7 +7,7 @@ echo "------------------------------------------------------"
 
 
 InputFile=Input.txt
-DataPath=$(  cat ${InputFile} | awk -F '=' '/^DataPath/ {print $2}')
+DataPath=$PWD
 SolverPath=$(cat ${InputFile} | awk -F '=' '/^SolverPath/ {print $2}')
 Nsamples=$(  cat ${InputFile} | awk -F '=' '/^Nsamples/ {print $2}')
 
@@ -19,6 +19,7 @@ cd "${MatlabTools}"
 bRotate=1
 bResize=1
 matlab -nodisplay -nojvm -nosplash -nodesktop -r "nii2dat('${DataPath}',${bRotate},${bResize}); exit"
+echo "debug, exited matlab script"
 cd "$MyBase"
 
 InputDataLocation=$(dirname "${DataPath}")

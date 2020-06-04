@@ -1,0 +1,10 @@
+sh -c 'echo "$$" &&
+        LC_ALL=C exec inotifywait -me create,moved_to --format=/%f/ . 2>&1' | {
+  IFS= read pid &&
+    while IFS= read -r line && [ "$line" != "Watches established." ]; do
+      : wait for watches to be established
+    done
+  [ -e Likelihood.txt ] || [ -L Likelihood.txt ] || grep -qxF /Likelihood.txt/ && kill "$pid"
+}
+sleep 1
+

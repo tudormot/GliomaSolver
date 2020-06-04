@@ -5,18 +5,15 @@ export LANG=C
 export LC_ALL=C
 GSL_INC_DIR=/lrz/sys/libraries/gsl/2.3/include
 GSL_LIB_DIR=/lrz/sys/libraries/gsl/2.3/lib
-endif
-
-ifneq "$(findstring kraken, $(shell hostname))" ""
-GSL_INC_DIR=/usr/include/gsl
-GSL_LIB_DIR=/usr/local/lib
 else
-GSL_INC_DIR=/opt/local/include/gsl
-GSL_LIB_DIR=/opt/local/lib
+GSL_INC_DIR="/home/tudorm/GliomaSolver/lib"/gsl-install/include/
+GSL_LIB_DIR="/home/tudorm/GliomaSolver/lib"/gsl-install/lib/
 endif
 
-#GSLROOT=${HOME}/usr/gsl
-#GSLROOT=/opt/local
+#ifneq "$(findstring kraken, $(shell hostname))" ""
+#GSL_INC_DIR=/usr/include/gsl
+#GSL_LIB_DIR=/usr/local/lib
+#endif
 
 CC = mpicc
 CPP = mpic++ 

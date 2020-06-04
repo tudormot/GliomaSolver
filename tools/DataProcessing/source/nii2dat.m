@@ -52,10 +52,15 @@ end
 
 if(isdir(InputPath))
 
-    outputPath = [InputPath(1:end-1),'_dat/'];
+    outputPath = [InputPath(1:end),'python_dat/'];
+    outputPath_glioma = [InputPath(1:end),'_glioma_dat/'];
     if( exist(outputPath,'dir') == 0 )
         mkdir(outputPath)
+        mkdir(outputPath_glioma)
     end;
+
+    disp("outputPath is : ")
+    disp(outputPath)
     
     % i) get names of files in the input folder
     % ii) convert them to nii
@@ -81,9 +86,11 @@ if(isdir(InputPath))
             InputNiiFile = [InputPath,inFilename];
             
             if( strcmp(inFilename(end-3:end),'.nii'))
-                outFilename  = [inFilename(1:end-3),'dat'];
+                outFilename  = [inFilename(1:end-3),'python_dat'];
+                outFilename_glioma  = [inFilename(1:end-3),'dat'];
             else if( strcmp(inFilename(end-6:end), '.nii.gz'))
-                    outFilename = [inFilename(1:end-6),'dat'];
+                    outFilename = [inFilename(1:end-6),'python_dat'];
+                    outFilename_glioma  = [inFilename(1:end-6),'dat'];
                     InputNiiFile = correctEmptySpaceInPathName(InputNiiFile);
                 end;
             end;
@@ -112,7 +119,10 @@ if(isdir(InputPath))
             end;
             
             typeId = 1; % 0 double, 1 float
-            writeMatrix(data,fullfile([outputPath,outFilename]),typeId);
+            fprintf('debug')
+            outFilename_glioma
+            save(fullfile([outputPath,outFilename]),'data')
+            writeMatrix(data,outFilename_glioma,typeId)
         end;
     end;
     
@@ -151,7 +161,8 @@ else
         end;
         
         typeId = 1; % 0 double, 1 float
-        writeMatrix(data,outFilename,typeId)
+        writeMatrix(data,outFilename_glioma,typeId)
+        save(fullfile([outputPath_glioma,outFilename]),'data')
     else
         fprintf('Your input file: %s \n does not contain nifty data. Aborting \n',InputPath);
     end;

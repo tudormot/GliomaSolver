@@ -1,3 +1,3 @@
-DataPath=/Users/lipkova 1/WORK/GliomaSolver/Simulations/PatientInferenceGamma/InputData/
-SolverPath=/Users/lipkova 1/WORK/GliomaSolver/
+DataPath=/home/tudorm/GliomaSolver/InputData/
+SolverPath=/home/tudorm/GliomaSolver/
 Nsamples=2048

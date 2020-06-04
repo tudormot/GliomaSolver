@@ -1,1 +1,1 @@
-echo -I/Users/lipkova 1/usr/torc/include -D_REENTRANT
+echo -I/home/tudorm/GliomaSolver/lib/usr/torc/include -D_REENTRANT

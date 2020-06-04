@@ -1,0 +1,45 @@
+#!/bin/bash
+echo "==================================================="
+echo "  Installing libraries for the Bayesian Inference  "
+echo "==================================================="
+InstallDir=$(pwd)
+SolverDir=$(dirname "${InstallDir}")
+cd "${SolverDir}"
+mkdir -p lib
+cd lib
+LIB_BASE=$(pwd)
+
+echo ">>> Downloading the libraries   <<<"
+echo "--------------------------------------"
+wget tdo.sk/~janka/GliomaSolverHome/libs/lib-linux-64-bit/inference_libs.tgz
+tar -zxf inference_libs.tgz
+mv inference_libs/* .
+rm inference_libs.tgz
+rm -r inference_libs
+
+echo " "
+echo "--------------------------------------"
+echo ">>> Installing libraries   <<<"
+echo "--------------------------------------"
+gsl_src=gsl-src
+mpich_src=mpich-3.2.1-src
+
+tar -zxf ${gsl_src}.tgz
+tar -zxf ${mpich_src}.tgz
+
+mkdir -p gsl-install
+mkdir -p mpich-install
+
+echo " Installing mpich:"
+echo "--------------------------------------"
+cd ${mpich_src}
+./configure --prefix="${LIB_BASE}"/mpich-install --disable-fortran
+make
+make isntall
+export PATH="${LIB_BASE}"/mpich-install/bin:$PATH
+echo "---------------"
+echo "mpicc is set to"
+which mpicc
+echo "---------------"
+cd ../
+

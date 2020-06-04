@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include "engine_tmcmc.h"
-//#define VERBOSE 1
+//#define VERBOSE 0
 #define _RESTART_
 #define _STEALING_
 /*#define _AFFINITY_*/
@@ -845,21 +845,23 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 	print_matrix("std", stdx, data.Nth);
 	} /* end block*/
 
+	printf("debug. we are here , just before calculate_statistics\n");
 	for (i = 0; i < n; i++) fj[i] = curgen_db.entry[i].F;	/* separate point from F ?*/
 	calculate_statistics(fj, n, data.Num[runinfo.Gen], runinfo.Gen, sel);
 
+	printf("debug. we are after calculate_statistics\n");
 	newchains = 0;
 	for (i = 0; i < n; i++) {
 		if (sel[i] != 0) newchains++;
 	}
-
+    printf("debug1\n");
 	sort_t list[n];
 	for (i = 0; i < n; i++) {
 		list[i].idx = i;
 		list[i].nsel = sel[i];
 		list[i].F = curgen_db.entry[i].F;
 	}
-
+    //printf("debug2\n");
 #if VERBOSE
 	printf("Points before\n");
 	for (i = 0; i < n; i++) {
@@ -868,7 +870,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 #endif
 
 	qsort(list, n, sizeof(sort_t), compar_desc);
-
+    //printf("debug3\n");
 #if VERBOSE
 	printf("Points after\n");
 	for (i = 0; i < n; i++) {
@@ -893,7 +895,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 	}
 
 	qsort(list, n, sizeof(sort_t), compar_desc);
-
+    //printf("debug5\n");
 #if VERBOSE
 	printf("Points broken\n");
 	for (i = 0; i < n; i++) {
@@ -913,7 +915,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 	}
 
 	qsort(list, n, sizeof(sort_t), compar_desc);
-
+    //printf("debug6\n");
 #if VERBOSE
 	printf("Points advanced\n");
 	for (i = 0; i < n; i++) {
@@ -940,6 +942,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 			ldi++;
 		}
 	}
+    //printf("debug7\n");
 
 	for (i = 0; i < newchains; i++) leaders[i].queue = -1;	/* rr*/
 
@@ -951,7 +954,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 #endif
 
 	/* cool and greedy partitioning ala Panos-- ;-) */
-
+    //printf("debug8\n");
 	int nworkers = torc_num_workers();
 	int *workload = calloc(1, nworkers*sizeof(int));	/* workload[1..workers] = 0*/
 
@@ -970,7 +973,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 		printf("%d %d %f %d\n", i, leaders[i].nsel, leaders[i].F, leaders[i].queue);
 	}
 #endif
-
+    //printf("debug9\n");
 	{/*start block*/
 /*	double x[data.Nth][n];*/
 	double **x = g_x;
@@ -985,6 +988,7 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 		meanx[p] = compute_mean(x[p], newchains);
 		stdx[p] = compute_std(x[p], newchains, meanx[p]);
 	}
+	//printf("debug10\n");
 
 	printf("CURGEN DB (LEADER) %d: [nlead=%d]\n", runinfo.Gen, newchains);
 	print_matrix("means", meanx, data.Nth);
@@ -993,10 +997,10 @@ int prepare_newgen(int nchains, cgdbp_t *leaders)
 
 	curgen_db.entries = 0;	/* reset curgen db*/
 	printf("calculate_statistics: newchains=%d\n", newchains);
-
+    //printf("debug11\n");
 	for (i = 0; i < data.Nth; i++) free(g_x[i]);
 	free(g_x);
-
+    //printf("debug12\n");
 	return newchains;
 }
 
@@ -1036,19 +1040,47 @@ void spmd_print_matrix_2d()
 
 void call_update_gdata()	/* step for p[j]*/
 {
+    //int world_rank;
+    //printf("debug in call_update_gdata .0\n");
+    //sleep(1);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //printf("debug in call_update_gdata .0.5\n");
+    //sleep(1);
+    //MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    //sleep(1);
+    //printf("debug in call_update_gdata .1\n");
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //sleep(1);
 	MPI_Bcast(runinfo.SS[0], data.Nth*data.Nth, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //sleep(1);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //sleep(1);
+    //printf("debug in call_update_gdata .2\n");
 	MPI_Bcast(runinfo.p, data.MaxStages, MPI_DOUBLE, 0, MPI_COMM_WORLD);	/* just p[Gen]*/
+    //sleep(1);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //sleep(1);
+    //printf("debug in call_update_gdata .3\n");
 	MPI_Bcast(&runinfo.Gen, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    //sleep(1);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //sleep(1);
+    //printf("debug.exiting call_update_gdata(). from node: %d \n", world_rank);
 }
 
 void spmd_update_gdata()	/* step*/
 {
 	int i;
+    //printf("debug.in spmd_update_data.0\n");
 	if (torc_num_nodes() == 1) return;
+    //printf("debug.in spmd_update_data.1\n");
 	for (i = 0; i < torc_num_nodes(); i++) {
+        //printf("We here. i = %d, torc_i_num_workers: %d \n" , i, torc_i_num_workers());
 		torc_create_ex(i*torc_i_num_workers(), 1, call_update_gdata, 0);
 	}
+    //printf("debug.in spmd_update_data.2\n");
 	torc_waitall();
+    //printf("debug.in spmd_update_data.3\n");
 }
 
 #if defined(_AFFINITY_)	/* BRUTUS */
@@ -1218,6 +1250,7 @@ int main(int argc, char *argv[])
 		double in_tparam[data.Nth];
 		int nsteps;
 		gt0 = torc_gettime();
+        //printf("debug.in main.debug4\n");
 		
 		for (i = 0; i < nchains; i++) {
 			winfo[0] = runinfo.Gen;
@@ -1231,7 +1264,7 @@ int main(int argc, char *argv[])
 			nsteps = leaders[i].nsel;
 
 			out_tparam[i] = leaders[i].F;	/* fleader...*/
-
+            //printf("debug.in main.debug5\n");
 			torc_create(leaders[i].queue, chaintask, 5,
 				data.Nth, MPI_DOUBLE, CALL_BY_COP,
 				1, MPI_INT, CALL_BY_COP,
@@ -1242,6 +1275,7 @@ int main(int argc, char *argv[])
 
 		}
 		/* wait for all chain tasks to finish */
+        printf("debug.in main.debug5\n");
 #ifdef _STEALING_
 		torc_enable_stealing();
 #endif
@@ -1268,10 +1302,12 @@ int main(int argc, char *argv[])
 
 		curres_db.entries = 0;
 		nchains = prepare_newgen(nchains, leaders);	/* calculate statistics*/
-
+        printf("debug.just exited prepare_newgen. in main.debug1\n");
 		spmd_update_gdata();
+        printf("debug.in main.debug2\n");
 		/*spmd_print_matrix_2d();*/
 		call_print_matrix_2d();
+        printf("debug.in main.debug3\n");
 
 #if 0
 		printf("=================\n");
@@ -1289,6 +1325,7 @@ int main(int argc, char *argv[])
 		if (runinfo.Gen+1 == data.MaxStages) {
 			break;
 		}
+        printf("debug.in main.debug4\n");
 	}
 
 	print_matrix("runinfo.p", runinfo.p, runinfo.Gen+1);

@@ -381,7 +381,10 @@ void Glioma_UQ_DataPreprocessing::_computePriorRange()
     
     Real Tmin = FLAIRradius/vmax;
     Real Tmax = (FLAIRradius + 2.) / vmin + 300.; // add 2cm infiltration + 300 days
-    
+
+    //modification added by Tudor for comparison with deep_tumor, this fixes the time prior between 1 and 1000 days:
+    Tmin = 1.;
+    Tmax = 1000.;
     if(bVerbose) printf("Tmin =%f, Tmax=%f \n",  Tmin, Tmax);
 
     // Restrict prior range to min 30 days and max 5 years

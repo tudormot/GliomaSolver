@@ -48,6 +48,8 @@ switch typeId
 end
 
 % write
+% disp('debuggy.filename is:')
+% disp(filename)
 fid = fopen(filename, 'wb');
 fwrite(fid, magic, 'integer*4');
 fwrite(fid, DIM, 'integer*4');

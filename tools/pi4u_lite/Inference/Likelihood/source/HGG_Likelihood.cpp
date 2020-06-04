@@ -50,21 +50,41 @@ long double HGG_Likelihood::_computePETLogLikelihood(MatrixD3D model)
     
     int N = 0;
     long double sum = 0.;
-    
-    
-    for (int iz = 0; iz < dataZ; iz++)
-        for (int iy = 0; iy < dataY; iy++)
-            for (int ix = 0; ix < dataX; ix++)
-            {
-                if ( (ix % stepPET == 0) &&  (iy % stepPET == 0) && (iz % stepPET == 0) )
+
+
+    if (!bSelectivePoints)
+        for (int iz = 0; iz < dataZ; iz++)
+            for (int iy = 0; iy < dataY; iy++)
+                for (int ix = 0; ix < dataX; ix++)
                 {
-                    if(PETdata(ix,iy,iz) > 0.)
+                    if ( (ix % stepPET == 0) &&  (iy % stepPET == 0) && (iz % stepPET == 0) )
                     {
-                        sum += ( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) )*( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) );
-                        N++;
+                        if(PETdata(ix,iy,iz) > 0.)
+                        {
+                            sum += ( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) )*( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) );
+                            N++;
+                        }
                     }
                 }
-            }
+    else {
+        sprintf(filename, "ROI.dat");
+        MatrixD2D Points(filename);
+        int Npoints = Points.getSizeX();
+
+        for (int i = 0; i < Npoints; i++) {
+            int ix = Points(i, 0);
+            int iy = Points(i, 1);
+            int iz = Points(i, 2);
+
+            if ((ix % stepPET == 0) &&  (iy % stepPET == 0) && (iz % stepPET == 0))
+                if(PETdata(ix,iy,iz) > 0.)
+                {
+                    sum += ( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) )*( model(ix,iy,iz) - PETscale * PETdata(ix,iy,iz) );
+                    N++;
+                }
+
+        }
+    }
     
     
     long double p1 = -0.5 * N * log(2.* M_PI * PETsigma2);
@@ -148,10 +168,10 @@ long double HGG_Likelihood::_computeLogBernoulli(double u, double y, int Ti)
     
     double diff = u - uc;
     
-    long double omega2 = (diff > 0.) ? 1. : diff*diff;
-    long double alpha = 0.5 + 0.5 * sgn(diff) * (1. - exp( -omega2 * is2));
-    
-    // OLD version: long double alpha = 0.5 + 0.5 * sgn(diff) * (1. - exp( -diff * diff * is2));
+    //long double omega2 = (diff > 0.) ? 1. : diff*diff;
+    //long double alpha = 0.5 + 0.5 * sgn(diff) * (1. - exp( -omega2 * is2));
+
+    long double alpha = 0.5 + 0.5 * sgn(diff) * (1. - exp( -diff * diff * is2));
     return  (y == 1 ) ? log(alpha) : log(1.-alpha);
 }
 
