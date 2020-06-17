@@ -594,7 +594,46 @@ void torc_update_curres_db(double point[EXPERIMENTAL_RESULTS], double F)
 //#include "fitfun.c"
 #include "fitfun_glioma.c"
 
-void evaluate_F(double point[], double *Fval, int worker_id, int gen_id, int chain_id, int step_id, int ntasks)
+void evaluate_F_write(double point[], double *Fval, int worker_id, int gen_id, int chain_id, int step_id, int ntasks)
+{
+    int i;
+    double G[64], F;	/* maxtasks */
+    int winfo[4];
+    int dim = data.Nth;
+
+    for (i = 0; i < ntasks; i++) {
+        winfo[0] = gen_id;
+        winfo[1] = chain_id;
+        winfo[2] = step_id;
+        winfo[3] = i;
+
+        if (ntasks == 1) {
+            taskfun_write(point, &dim, &G[i], winfo);
+        }
+        else {
+            printf("ERROR! did not expect this\n");
+        }
+
+    }
+//    if (ntasks > 1)
+//        torc_waitall();
+
+    /* compute F from G's - how? : F fitness function = distance from ground truth */
+//    F = 0.0;
+//    for (i = 0; i < ntasks; i++) {
+//        F += G[i];
+//    }
+//    F = F/ntasks;
+
+    /*update_full_db(point, F, G, ntasks, 0); // not surrogate */
+    /*...torc_update_full_db(point, F, G, ntasks, 0); // not surrogate */
+
+//    *Fval = F;
+}
+
+
+
+void evaluate_F_read(double point[], double *Fval, int worker_id, int gen_id, int chain_id, int step_id, int ntasks)
 {
 	int i;
 	double G[64], F;	/* maxtasks */
@@ -608,20 +647,15 @@ void evaluate_F(double point[], double *Fval, int worker_id, int gen_id, int cha
 		winfo[3] = i;
 
 		if (ntasks == 1) {
-			taskfun(point, &dim, &G[i], winfo);
+			taskfun_read(point, &dim, &G[i], winfo);
 		}
 		else {
-			torc_create(-1, taskfun, 4,
-				data.Nth, MPI_DOUBLE, CALL_BY_VAL,
-				1, MPI_INT, CALL_BY_COP,
-				1, MPI_DOUBLE, CALL_BY_RES,
-				4, MPI_INT, CALL_BY_COP,
-				point, &dim, &G[i], winfo);
+			printf("was not expecting this!");
 		}
 
 	}
-	if (ntasks > 1)
-		torc_waitall();
+//	if (ntasks > 1)
+//		torc_waitall();
 
 	/* compute F from G's - how? : F fitness function = distance from ground truth */
 	F = 0.0;
@@ -636,7 +670,7 @@ void evaluate_F(double point[], double *Fval, int worker_id, int gen_id, int cha
 	*Fval = F;
 }
 
-void initchaintask(double in_tparam[], int *pdim, double *out_tparam, int winfo[4])
+void initchaintask_write(double in_tparam[], int *pdim, double *out_tparam, int winfo[4])
 {
 	int i;
 	int gen_id, chain_id;
@@ -649,13 +683,37 @@ void initchaintask(double in_tparam[], int *pdim, double *out_tparam, int winfo[
 	for (i = 0; i < data.Nth; i++)
 		point[i] = in_tparam[i];
 
-	evaluate_F(point, &fpoint, me, gen_id, chain_id, 0, 1);
+	//TODO:need to decide what to do here
+	evaluate_F_write(point, &fpoint, me, gen_id, chain_id, 0, 1);
 
 	/* update current db entry */
-	torc_update_curgen_db(point, fpoint);
-	*out_tparam = fpoint;	/* currently not required, the result is already in the db*/
+//	torc_update_curgen_db(point, fpoint);
+//	*out_tparam = fpoint;	/* currently not required, the result is already in the db*/
 
 	return;
+}
+
+void initchaintask_read(double in_tparam[], int *pdim, double *out_tparam, int winfo[4])
+{
+    int i;
+    int gen_id, chain_id;
+    gen_id = winfo[0];
+    chain_id = winfo[1];
+
+    long me = torc_worker_id();
+    double point[data.Nth], fpoint;
+
+    for (i = 0; i < data.Nth; i++)
+        point[i] = in_tparam[i];
+
+    //TODO:need to decide what to do here
+    evaluate_F_read(point, &fpoint, me, gen_id, chain_id, 0, 1);
+
+    /* update current db entry */
+    torc_update_curgen_db(point, fpoint);
+    *out_tparam = fpoint;	/* currently not required, the result is already in the db*/
+
+    return;
 }
 
 void compute_candidate(double candidate[], double leader[], double var)
@@ -680,7 +738,7 @@ retry:
 	if (i < data.Nth) goto retry;
 }
 
-void chaintask(double in_tparam[], int *pdim, int *pnsteps, double *out_tparam, int winfo[4])
+void chaintask_write(double in_tparam[], int *pdim, int *pnsteps, double *out_tparam, int winfo[4])
 {
 	int i,step;
 	int nsteps = *pnsteps;
@@ -697,37 +755,91 @@ void chaintask(double in_tparam[], int *pdim, int *pnsteps, double *out_tparam, 
 	fpc_leader = posterior(leader, data.Nth, fleader);
 	double pj = runinfo.p[runinfo.Gen];
 
+	if (nsteps != 1)
+	    printf("debug tudor! we were not expecting this\n");
 	for (step = 0; step < nsteps; step++) {
 
 		compute_candidate(candidate, leader, 1); /* //bbeta*SS);	// multivariate gaussian(center, var) for each direction*/
 
 		/* evaluate fcandidate (NAMD: 12 points) */
-		evaluate_F(candidate, &fcandidate, me, gen_id, chain_id, step, 1);	/* this can spawn many tasks*/
-		fpc_candidate = posterior(candidate, data.Nth, fcandidate);
-
-		/* Decide */
-		double prior_candidate = priorpdf(candidate, data.Nth);	/* from PanosA */
-		double prior_leader = priorpdf(leader, data.Nth);
-#if 1	/* peh:check this */
-		double L = exp((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* with exp, without log in priorpdf and fitfun */       
-#else
-		double L = ((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* without exp, with log in priorpdf and fitfun */
-#endif
-		if (L > 1) L = 1;
-		double P = uniformrand(0,1);
-		if (P < L) {
-			for (i = 0; i < data.Nth; i++) leader[i] = candidate[i];	/* new leader! */
-			fleader = fcandidate;
-			fpc_leader = fpc_candidate;
-			torc_update_curgen_db(leader, fleader);
-		}
-		else {
-			/*increase counter or add the leader again in curgen_db*/
-			torc_update_curgen_db(leader, fleader);
-		}
+		evaluate_F_write(candidate, &fcandidate, me, gen_id, chain_id, step, 1);	/* this can spawn many tasks*/
+//		fpc_candidate = posterior(candidate, data.Nth, fcandidate);
+//
+//		/* Decide */
+//		double prior_candidate = priorpdf(candidate, data.Nth);	/* from PanosA */
+//		double prior_leader = priorpdf(leader, data.Nth);
+//#if 1	/* peh:check this */
+//		double L = exp((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* with exp, without log in priorpdf and fitfun */
+//#else
+//		double L = ((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* without exp, with log in priorpdf and fitfun */
+//#endif
+//		if (L > 1) L = 1;
+//		double P = uniformrand(0,1);
+//		if (P < L) {
+//			for (i = 0; i < data.Nth; i++) leader[i] = candidate[i];	/* new leader! */
+//			fleader = fcandidate;
+//			fpc_leader = fpc_candidate;
+//			torc_update_curgen_db(leader, fleader);
+//		}
+//		else {
+//			/*increase counter or add the leader again in curgen_db*/
+//			torc_update_curgen_db(leader, fleader);
+//		}
 	}
 
 	return;
+}
+
+void chaintask_read(double in_tparam[], int *pdim, int *pnsteps, double *out_tparam, int winfo[4])
+{
+    int i,step;
+    int nsteps = *pnsteps;
+    int gen_id = winfo[0];
+    int chain_id = winfo[1];
+
+    long me = torc_worker_id();
+
+    double leader[data.Nth], fleader, fpc_leader;		/* fold*/
+    double candidate[data.Nth], fcandidate, fpc_candidate;	/* fnew*/
+
+    for (i = 0; i < data.Nth; i++) leader[i] = in_tparam[i]; /*chainwork->in_tparam[i];*/	/* get initial leader */
+    fleader = *out_tparam; /*chainwork->out_tparam[0];*/					/* and its value */
+    fpc_leader = posterior(leader, data.Nth, fleader);
+    double pj = runinfo.p[runinfo.Gen];
+
+    if (nsteps != 1)
+        printf("debug tudor! we were not expecting this\n");
+    for (step = 0; step < nsteps; step++) {
+
+        //compute_candidate(candidate, leader, 1); /* //bbeta*SS);	// multivariate gaussian(center, var) for each direction*/
+
+        /* evaluate fcandidate (NAMD: 12 points) */
+        evaluate_F_read(candidate, &fcandidate, me, gen_id, chain_id, step, 1);	/* this can spawn many tasks*/
+        fpc_candidate = posterior(candidate, data.Nth, fcandidate);
+
+        /* Decide */
+        double prior_candidate = priorpdf(candidate, data.Nth);	/* from PanosA */
+        double prior_leader = priorpdf(leader, data.Nth);
+#if 1	/* peh:check this */
+        double L = exp((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* with exp, without log in priorpdf and fitfun */
+#else
+        double L = ((prior_candidate-prior_leader)+(fpc_candidate-fpc_leader)*pj);	/* without exp, with log in priorpdf and fitfun */
+#endif
+        if (L > 1) L = 1;
+        double P = uniformrand(0,1);
+        if (P < L) {
+            for (i = 0; i < data.Nth; i++) leader[i] = candidate[i];	/* new leader! */
+            fleader = fcandidate;
+            fpc_leader = fpc_candidate;
+            torc_update_curgen_db(leader, fleader);
+        }
+        else {
+            /*increase counter or add the leader again in curgen_db*/
+            torc_update_curgen_db(leader, fleader);
+        }
+    }
+
+    return;
 }
 
 #if 1
@@ -1114,14 +1226,16 @@ int main(int argc, char *argv[])
 	int winfo[4];
 	int nchains; /* was below*/
 
-	torc_register_task(initchaintask);
-	torc_register_task(chaintask);
+	torc_register_task(initchaintask_read);
+    torc_register_task(initchaintask_write);
+	torc_register_task(chaintask_read);
+    torc_register_task(chaintask_write);
 	torc_register_task(torc_update_full_db_task);
 	torc_register_task(torc_update_curgen_db_task);
 	torc_register_task(torc_update_curres_db_task);
 	torc_register_task(reset_nfc_task);
 	torc_register_task(get_nfc_task);
-	torc_register_task(taskfun);
+	//torc_register_task(taskfun);
 	torc_register_task(call_gsl_rand_init);
 	torc_register_task(call_print_matrix_2d);
 	torc_register_task(call_update_gdata);
@@ -1162,6 +1276,8 @@ int main(int argc, char *argv[])
 	nchains = data.Num[0];
 	double out_tparam[data.PopSize];	/* nchains*/
 
+    double save_in_tparam[data.Nth * nchains];
+
 #if defined(_RESTART_)
 	if (goto_next == 0)
 	{
@@ -1174,6 +1290,8 @@ int main(int argc, char *argv[])
 
 		double in_tparam[data.Nth];
 
+
+
 #if 1	/* peh:check this for (a) sampling (b) loading points/data from file */
 		/* uniform */
 		int d;
@@ -1181,18 +1299,46 @@ int main(int argc, char *argv[])
 			in_tparam[d] = uniformrand(0,1);
 			in_tparam[d] *= (data.upperbound[d]-data.lowerbound[d]);
 			in_tparam[d] += data.lowerbound[d];
+			save_in_tparam[i*data.Nth+d]=in_tparam[d];
 		}
 #else
 		mvnrnd(data.prior_mu, data.prior_sigma, in_tparam, data.Nth);
 #endif
 
-		torc_create(-1, initchaintask, 4,
+		torc_create(-1, initchaintask_write, 4,
 			data.Nth, MPI_DOUBLE, CALL_BY_COP,
 			1, MPI_INT, CALL_BY_COP,
 			1, MPI_DOUBLE, CALL_BY_RES,
 			4, MPI_INT, CALL_BY_COP,
 			in_tparam, &data.Nth, &out_tparam[i], winfo);
 	}
+	torc_waitall();
+	for (i = 0; i < nchains; i++) {
+        winfo[0] = runinfo.Gen;
+        winfo[1] = i;
+        winfo[2] = -1;
+        winfo[3] = -1;
+
+        double in_tparam[data.Nth];
+        int d;
+        for (d = 0; d < data.Nth; d++) {
+            in_tparam[d] = uniformrand(0,1);
+            in_tparam[d] *= (data.upperbound[d]-data.lowerbound[d]);
+            in_tparam[d] += data.lowerbound[d];
+            in_tparam[d]=save_in_tparam[i*data.Nth+d];
+        }
+
+	    //TODO; does in_tparam still required for initchaintask_read?
+        torc_create(-1, initchaintask_read, 4,
+            data.Nth, MPI_DOUBLE, CALL_BY_COP,
+            1, MPI_INT, CALL_BY_COP,
+            1, MPI_DOUBLE, CALL_BY_RES,
+            4, MPI_INT, CALL_BY_COP,
+            in_tparam, &data.Nth, &out_tparam[i], winfo);
+	}
+
+
+
 #ifdef _STEALING_
 	torc_enable_stealing();
 #endif
@@ -1265,7 +1411,7 @@ int main(int argc, char *argv[])
 
 			out_tparam[i] = leaders[i].F;	/* fleader...*/
             //printf("debug.in main.debug5\n");
-			torc_create(leaders[i].queue, chaintask, 5,
+			torc_create(leaders[i].queue, chaintask_write, 5,
 				data.Nth, MPI_DOUBLE, CALL_BY_COP,
 				1, MPI_INT, CALL_BY_COP,
 				1, MPI_INT, CALL_BY_COP,
@@ -1274,8 +1420,30 @@ int main(int argc, char *argv[])
 				in_tparam, &data.Nth, &nsteps, &out_tparam[i], winfo);
 
 		}
+        torc_waitall();
+
+        for (i = 0; i < nchains; i++) {
+            winfo[0] = runinfo.Gen;
+            winfo[1] = i;
+            winfo[2] = -1;	/* not used */
+            winfo[3] = -1;	/* not used */
+
+            int p;
+            for (p = 0; p < data.Nth; p++)
+                in_tparam[p] = leaders[i].point[p];
+            nsteps = leaders[i].nsel;
+
+            out_tparam[i] = leaders[i].F;
+
+            torc_create(leaders[i].queue, chaintask_read, 5,
+                data.Nth, MPI_DOUBLE, CALL_BY_COP,
+                1, MPI_INT, CALL_BY_COP,
+                1, MPI_INT, CALL_BY_COP,
+                1, MPI_DOUBLE, CALL_BY_REF,
+                4, MPI_INT, CALL_BY_COP,
+                in_tparam, &data.Nth, &nsteps, &out_tparam[i], winfo);
+        }
 		/* wait for all chain tasks to finish */
-        printf("debug.in main.debug5\n");
 #ifdef _STEALING_
 		torc_enable_stealing();
 #endif
