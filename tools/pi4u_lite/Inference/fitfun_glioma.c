@@ -45,6 +45,7 @@ static pthread_mutex_t fork_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void taskfun_write(double /*const*/ *x, int *pN, double *res, int winfo[4]) {
     // 0.
+    //printf("### entered taskfunwrite for sure\n");
     int n = *pN;
     int me = getpid();  /* spanwer_id : worker_id */
     char line[1024];
@@ -64,6 +65,8 @@ void taskfun_write(double /*const*/ *x, int *pN, double *res, int winfo[4]) {
     getcwd(cwd, 256);
     sprintf(bindir, "%s/TMPTMP", cwd);
 
+    printf("### We in taskfun write. cwd is : %s\n",cwd);
+
 #if USE_SCRATCH
     sprintf(taskname, "/scratch/tmpdir.%d.%d.%d.%d", gen, chain, step, task);
 #else
@@ -72,12 +75,12 @@ void taskfun_write(double /*const*/ *x, int *pN, double *res, int winfo[4]) {
     mkdir(taskname, S_IRWXU);
 
     // 2.1 enter tmp folder
-    chdir(taskname);
+    //chdir(taskname);
 
     // 2.2 copy necessary stuff
     //  int status = copy_from_dir("../TMPTMP");
-    printf("debug. bindir is %s\n",bindir);
-    int status = copy_from_dir(bindir);
+    //printf("debug. bindir is %s\n",bindir);
+    int status = copy_from_dir(bindir,taskname);
     if (status != 0) {
         printf("Error in copy from dir\n");
         abort();
@@ -103,30 +106,36 @@ void taskfun_write(double /*const*/ *x, int *pN, double *res, int winfo[4]) {
     param[2] = param[2] / param[1];  // Tend^2 = c / rho
     param[2] = sqrt(param[2]);
 
-
+    printf("### debuggy.starting to write parameter files \n");
     // 1.3 Simulation input parametes
     int i;
-    FILE *finp = fopen("InputParameters.txt", "w");
+    char dest[256];
+    sprintf(dest, "%s/InputParameters.txt", taskname);
+    FILE *finp = fopen(dest, "w");
     for (i = 0; i < 3; i++) fprintf(finp, "%.16lf\n", param[i]);
     fclose(finp);
 
     // 1.4 Tumor initial position
-    finp = fopen("TumorIC.txt", "w");
+    sprintf(dest, "%s/TumorIC.txt", taskname);
+    finp = fopen(dest, "w");
     for (i = 3; i < 6; i++) fprintf(finp, "%.4f \n", param[i]);
     fclose(finp);
 
     // 1.5 write input parametes to the input file for likelihood evaluation
     // PETsigma2, PETscale, TIsigma2
-    finp = fopen("LikelihoodInput.txt", "w");
+    sprintf(dest, "%s/LikelihoodInput.txt", taskname);
+    finp = fopen(dest, "w");
     for (i = 6; i < n; i++) fprintf(finp, "%.16lf\n", param[i]);
     fclose(finp);
 
-    chdir(cwd);
+    //chdir(cwd);
+    //printf("### debuggy.starting to write parameter files \n");
 
 }
 
 void taskfun_read(double /*const*/ *x, int *pN, double *res, int winfo[4])
 {
+
     // 0.
     int n  = *pN;
     int me = getpid();  /* spanwer_id : worker_id */
@@ -137,12 +146,12 @@ void taskfun_read(double /*const*/ *x, int *pN, double *res, int winfo[4])
     int gen, chain, step, task;
     gen = winfo[0]; chain = winfo[1]; step = winfo[2]; task = winfo[3];
 
-
+    //printf("debug. Entered taskfun read \n");
     // 1.
     //sprintf(taskname, "tmpdir.%d.%d", getpid(), torc_worker_id());
     char cwd[256], bindir[256];
     getcwd(cwd, 256);
-    sprintf(bindir, "%s/TMPTMP", cwd);
+    //sprintf(bindir, "%s/TMPTMP", cwd);
 
 #if USE_SCRATCH
     sprintf(taskname, "/scratch/tmpdir.%d.%d.%d.%d", gen, chain, step, task);
@@ -151,9 +160,12 @@ void taskfun_read(double /*const*/ *x, int *pN, double *res, int winfo[4])
 #endif
 //    mkdir(taskname, S_IRWXU);
 
+
 #if 1
     t0 = my_gettime();
+    //printf("debug.trying to acquire lock\n");
     while (pthread_mutex_trylock(&fork_mutex) == EBUSY) usleep(500*1000);
+    //printf("lock acquired\n");
 #endif
 
     // 2.
@@ -182,8 +194,12 @@ retry:
 
 
     if (rf == 0)
-    {
+    {   //printf("###cwd now is: %s",cwd);
+        chdir(taskname);
+        getcwd(cwd, 256);
+        //printf("###cwd now is: %s",cwd);
 
+        //printf("debug. before running runAll. We are in: %s\n",taskname);
         /* 2. run simulation */
         sprintf(line, "./runAll.sh");
         parse(line, largv);
@@ -198,6 +214,7 @@ retry:
 #endif
 
         execvp(*largv, largv);
+        printf("ERROR! could not exectute runAll.sh ! \n");
     }
 
     pthread_mutex_unlock(&fork_mutex);
@@ -219,8 +236,10 @@ retry:
 	}
    else {
     int status;
+    //printf("In process which waits for runAll.sh to finish. Starting to wait.\n");
     waitpid(rf, &status, 0);
    }
+   //printf("finished the wait. we are in: %s\n",cwd);
 
     // 4.
     double likelihood;
@@ -283,6 +302,7 @@ retry:
     	printf("%s", msg); fflush(0);
     }
 
+    //printf("exiting taskfun_read \n");
     return;
 }
 

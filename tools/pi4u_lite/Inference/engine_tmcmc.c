@@ -762,8 +762,10 @@ void chaintask_write(double in_tparam[], int *pdim, int *pnsteps, double *out_tp
 		compute_candidate(candidate, leader, 1); /* //bbeta*SS);	// multivariate gaussian(center, var) for each direction*/
 
 		/* evaluate fcandidate (NAMD: 12 points) */
+        printf("Debug.Entering evaluate_F_write. My torc_worker_id is %d\n",me);
 		evaluate_F_write(candidate, &fcandidate, me, gen_id, chain_id, step, 1);	/* this can spawn many tasks*/
-//		fpc_candidate = posterior(candidate, data.Nth, fcandidate);
+        printf("Debug.Exited evaluate_F_write My torc_worker_id is %d\n",me);
+		//		fpc_candidate = posterior(candidate, data.Nth, fcandidate);
 //
 //		/* Decide */
 //		double prior_candidate = priorpdf(candidate, data.Nth);	/* from PanosA */
@@ -1235,14 +1237,15 @@ int main(int argc, char *argv[])
 	torc_register_task(torc_update_curres_db_task);
 	torc_register_task(reset_nfc_task);
 	torc_register_task(get_nfc_task);
-	//torc_register_task(taskfun);
+	torc_register_task(taskfun_read);
+    torc_register_task(taskfun_write);
 	torc_register_task(call_gsl_rand_init);
 	torc_register_task(call_print_matrix_2d);
 	torc_register_task(call_update_gdata);
 #if defined(_AFFINITY_)
 	torc_register_task(call_setaffinity);
 #endif
-
+    //printf("debug0\n");
 	data_init();
 	setup_handler();
 
@@ -1256,6 +1259,7 @@ int main(int argc, char *argv[])
 
 	curgen_db.entries = 0; /* peh+ */
 
+	//printf("debug1.main\n");
 #if defined(_RESTART_)
 	int goto_next = 0;
 	int res;
@@ -1278,6 +1282,7 @@ int main(int argc, char *argv[])
 
     double save_in_tparam[data.Nth * nchains];
 
+    printf("starting initchaintask_write tasks..\n");
 #if defined(_RESTART_)
 	if (goto_next == 0)
 	{
@@ -1304,7 +1309,7 @@ int main(int argc, char *argv[])
 #else
 		mvnrnd(data.prior_mu, data.prior_sigma, in_tparam, data.Nth);
 #endif
-
+        printf("registering initchaintask_write..\n");
 		torc_create(-1, initchaintask_write, 4,
 			data.Nth, MPI_DOUBLE, CALL_BY_COP,
 			1, MPI_INT, CALL_BY_COP,
@@ -1313,6 +1318,8 @@ int main(int argc, char *argv[])
 			in_tparam, &data.Nth, &out_tparam[i], winfo);
 	}
 	torc_waitall();
+	printf("just completed initchaintasks_write tasks \n");
+	printf("starting initchaintasks_read tasks \n");
 	for (i = 0; i < nchains; i++) {
         winfo[0] = runinfo.Gen;
         winfo[1] = i;
@@ -1328,7 +1335,8 @@ int main(int argc, char *argv[])
             in_tparam[d]=save_in_tparam[i*data.Nth+d];
         }
 
-	    //TODO; does in_tparam still required for initchaintask_read?
+
+        printf("registering initchaintask_read..\n");
         torc_create(-1, initchaintask_read, 4,
             data.Nth, MPI_DOUBLE, CALL_BY_COP,
             1, MPI_INT, CALL_BY_COP,
@@ -1343,6 +1351,7 @@ int main(int argc, char *argv[])
 	torc_enable_stealing();
 #endif
 	torc_waitall();
+	printf("just completed initchaintasks_read tasks \n");
 #ifdef _STEALING_
 	torc_disable_stealing();
 #endif
@@ -1411,17 +1420,28 @@ int main(int argc, char *argv[])
 
 			out_tparam[i] = leaders[i].F;	/* fleader...*/
             //printf("debug.in main.debug5\n");
-			torc_create(leaders[i].queue, chaintask_write, 5,
+            printf("registering chaintask_write..\n");
+			//torc_create(leaders[i].queue, chaintask_write, 5,
+            torc_create(-1, chaintask_write, 5,
 				data.Nth, MPI_DOUBLE, CALL_BY_COP,
 				1, MPI_INT, CALL_BY_COP,
 				1, MPI_INT, CALL_BY_COP,
 				1, MPI_DOUBLE, CALL_BY_REF,
 				4, MPI_INT, CALL_BY_COP,
 				in_tparam, &data.Nth, &nsteps, &out_tparam[i], winfo);
+			//printf("finished registering chaintask_write..<\n");
 
 		}
+		printf("waiting for all chaintask_writes to finish\n");
+#ifdef _STEALING_
+        torc_enable_stealing();
+#endif
         torc_waitall();
-
+#ifdef _STEALING_
+        torc_disable_stealing();
+#endif
+		printf("chaintask_writes all finished. \n");
+        printf("starting chaintasks_read tasks. \n");
         for (i = 0; i < nchains; i++) {
             winfo[0] = runinfo.Gen;
             winfo[1] = i;
@@ -1434,8 +1454,9 @@ int main(int argc, char *argv[])
             nsteps = leaders[i].nsel;
 
             out_tparam[i] = leaders[i].F;
-
-            torc_create(leaders[i].queue, chaintask_read, 5,
+            printf("registering chaintask_read task..\n");
+            //torc_create(leaders[i].queue, chaintask_read, 5,
+            torc_create(-1, chaintask_read, 5,
                 data.Nth, MPI_DOUBLE, CALL_BY_COP,
                 1, MPI_INT, CALL_BY_COP,
                 1, MPI_INT, CALL_BY_COP,
@@ -1448,6 +1469,7 @@ int main(int argc, char *argv[])
 		torc_enable_stealing();
 #endif
 		torc_waitall();
+		printf("just completed all chaintasks_read tasks \n");
 #ifdef _STEALING_
 		torc_disable_stealing();
 #endif
@@ -1470,12 +1492,15 @@ int main(int argc, char *argv[])
 
 		curres_db.entries = 0;
 		nchains = prepare_newgen(nchains, leaders);	/* calculate statistics*/
-        printf("debug.just exited prepare_newgen. in main.debug1\n");
+        //printf("debug.just exited prepare_newgen. in main.debug1\n");
 		spmd_update_gdata();
-        printf("debug.in main.debug2\n");
+        //printf("debug.in main.debug2\n");
 		/*spmd_print_matrix_2d();*/
 		call_print_matrix_2d();
-        printf("debug.in main.debug3\n");
+        //printf("debug.in main.debug3\n");
+        printf("Waiting after prepare_newgen. A hang here would mean something fishy is going in these prepare_newgen functions..\n");
+        torc_waitall();
+        printf("Exited wait after prepare_newgen\n");
 
 #if 0
 		printf("=================\n");
@@ -1493,7 +1518,7 @@ int main(int argc, char *argv[])
 		if (runinfo.Gen+1 == data.MaxStages) {
 			break;
 		}
-        printf("debug.in main.debug4\n");
+        //printf("debug.in main.debug4\n");
 	}
 
 	print_matrix("runinfo.p", runinfo.p, runinfo.Gen+1);

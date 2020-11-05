@@ -142,23 +142,23 @@ out_error:
 	return -1;
 }
 
-int copy_from_dir(char *name)
+int copy_from_dir(char *source, char *dest)
 {
 	DIR *dir;
 	struct dirent *ent;
 	//struct stat sb;
 
-	dir = opendir (name);
+	dir = opendir (source);
 	if (dir != NULL) {
 		/* print all the files and directories within directory */
 		while ((ent = readdir (dir)) != NULL) {
 			//if (ent->d_type == DT_REG) {
 				//printf ("%s (%d)\n", ent->d_name, ent->d_type);
-				char source[256], dest[256];
+				char source_full[256], dest_full[256];
 
-				sprintf(source, "%s/%s", name, ent->d_name);
-				sprintf(dest, "./%s", ent->d_name);
-				cp(source, dest);
+				sprintf(source_full, "%s/%s", source, ent->d_name);
+				sprintf(dest_full, "%s/%s",dest, ent->d_name);
+				cp(source_full, dest_full);
 			//}
 
 		}
