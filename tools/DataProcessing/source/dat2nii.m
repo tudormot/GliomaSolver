@@ -133,7 +133,14 @@ else
         datVolume = loadMatrix(InputDatPath);
         
         if(bResize)
+
             [Nx,Ny,Nz] = size(nii_data.vol);
+            fprintf("size of nii data as detected by scrips: %d, %d, %d", Nx,Ny,Nz);
+            %workaround by Tudor, to deal with input nifty files with corrupt headers: as input volumes are always 240x240x155, just set this target manually
+            Nx= 240;
+            Ny= 240;
+            Nz= 155;
+
             datVolume = resize_data(datVolume,Nx,Ny,Nz);
         end;
         

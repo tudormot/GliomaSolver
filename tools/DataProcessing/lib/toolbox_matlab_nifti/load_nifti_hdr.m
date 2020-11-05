@@ -131,7 +131,8 @@ switch(xyzunits)
  case 3, xyzscale =     .001; % microns
  otherwise, 
   fprintf('WARNING: xyz units code %d is unrecognized\n',xyzunits);
-  xyzscale = 10^10; % Make it silly
+  fprintf('workaround: setting scale manually\n');
+  xyzscale = 1.000;
 end
 hdr.pixdim(2:4) = hdr.pixdim(2:4) * xyzscale;
 hdr.srow_x = hdr.srow_x * xyzscale;
